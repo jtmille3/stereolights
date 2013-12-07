@@ -14,19 +14,24 @@
 // messages.
 #define LIGHT_COUNT (25)  // 2-25 works great.  1 thinks it's position 32?
 
-// Arduino pin number. Pin 13 will blink the on-board LED.
-#define G35_PIN (2)
-
 // Audio middle even though it's 0-1024
-#define EQUALIBRIUM (500) // this is an observered through monitoring audio "silence" 515
+#define EQUALIBRIUM (515) // this is an observered through monitoring audio "silence" 515
 
-#define BARS (12) // Divide up the equalizer into bars
+#define BARS (LIGHT_COUNT / 2) // Divide up the equalizer into bars
 
 #define DEBUG (1) // print messages
+
+// Arduino pin number. Pin 13 will blink the on-board LED.
+#define G35_PIN (2)
 
 G35String lights(G35_PIN, LIGHT_COUNT);
 
 color_t color_array[LIGHT_COUNT];
+
+int left_channel_bulb[BARS];
+int left_channel_last_bulb;
+int right_channel_bulb[BARS];
+int right_channel_last_bulb;
 
 void setup() 
 {
@@ -38,38 +43,41 @@ void setup()
   lights.enumerate();
   lights.fill_color(0, 100, G35::MAX_INTENSITY, COLOR_BLACK);
 
-
   // rgb1, rgb2, start, length
   fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 9, 3);
   fill(0xF, 0x0, 0x0, 0x0, 0xF, 0x0, 3, 6);
   fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 0, 3);
-  if(DEBUG) {
-    color_array[12] = COLOR_BLACK;  // middle light
-  } else {
+  
+  if(DEBUG) 
+  {
+    color_array[12] = COLOR_BLACK;  // middle light, easier to locate when black
+  } 
+  else 
+  {
     color_array[12] = COLOR_GREEN;  // middle light
   }
+  
   fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 13, 3);
   fill(0x0, 0xF, 0x0, 0xF, 0x0, 0x0, 16, 6);
   fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 22, 3);
-
-  //fill(0xF, 0x0, 0x0, 0x5, 0xF, 0x0, 0, 12);
-//  for(int bulb = 0; bulb < LIGHT_COUNT; bulb++) 
-//  {
-//    lights.fill_color(bulb, 1, G35::MAX_INTENSITY, color_array[bulb]);
-//  }
+  
+  for(int i = 0; i < LIGHT_COUNT / 2; i++) 
+  {
+    // +1 offset from the middle because of odd bulbs
+    left_channel_bulb[i] = LIGHT_COUNT / 2 + 1 - i;  
+    left_channel_last_bulb = 0;
+    right_channel_bulb[i] = LIGHT_COUNT / 2 + 1 + i;
+    right_channel_last_bulb = 0;
+  }
 }
 
 // control the equalizer through intensity 0x00 to 0xcc
 void loop() 
 {
-  // take samples for 1 millisecond and use the high amplitudes
-  // no point in using interrupts as we want to sample as much data as possible,
-  // and with the arduino it couldn't possibly keep up with audio while doing 
-  // other activities.
-  int sampleTime = 50; // 1000 microseconds = 1 millisecond
+  int sampleCount = 20;
   int highAmp0 = 0;
   int highAmp1 = 0;
-  while(sampleTime--) 
+  while(sampleCount--) 
   {
     int a0value = analogRead(A0);
     int a1value = analogRead(A1);
@@ -93,23 +101,60 @@ void loop()
   int bars1 = getBars(highAmp1);
   updateLights(bars0, bars1);
 
-  delayMicroseconds(100);
-  //delayMicroseconds(1000);        // delay in between reads for stability
+  delayMicroseconds(100); // delay in between reads for stability
 }
 
-void updateLights(int bars0, int bars1) 
+void updateLights(int left_bars, int right_bars) 
 {
   for(int i = 0; i < LIGHT_COUNT; i++) {
-    if(bars0 + i > BARS && i < BARS) { // assume counting from the middle (13) to the right (25)
+    if(left_bars + i > BARS && i < BARS) { // assume counting from the middle (13) to the right (25)
       lights.fill_color(i, 1, G35::MAX_INTENSITY, color_array[i]);
     } 
-    else if(bars1 + BARS > i && i > BARS) { // assume counting from the middle (11) to the left (0)
+    else if(right_bars + BARS > i && i > BARS) { // assume counting from the middle (11) to the left (0)
       lights.fill_color(i, 1, G35::MAX_INTENSITY, color_array[i]);
     } 
-    else {
+    else 
+    {
+      // fade out the lights that are turned on.
+      // wait until the intensity is half before turning off the next one and so on.
       lights.fill_color(i, 1, 0x0, color_array[i]);
     }
   }
+  
+  return;
+  
+  if(left_bars > left_channel_last_bulb) // rise
+  {
+    for(int j = 0; j < BARS; j++) 
+    {
+      if(left_bars <= j) 
+      {
+        lights.fill_color(left_channel_bulb[j], 1, G35::MAX_INTENSITY, color_array[j]);
+      }
+    }
+  }
+  else // decay
+  {
+    delay(20);
+  }
+  
+  if(right_bars > right_channel_last_bulb) // rise
+  {
+    for(int j = 0; j < BARS; j++) 
+    {
+      if(right_bars <= j) 
+      {
+        lights.fill_color(right_channel_bulb[j], 1, G35::MAX_INTENSITY, color_array[j]);
+      }
+    }
+  }
+  else // decay
+  {
+    delay(20);
+  }
+  
+  left_channel_last_bulb = left_bars;
+  right_channel_last_bulb = right_bars;
 }
 
 void fill(int red1, int green1, int blue1, int red2, int green2, int blue2, int start, int frames)
