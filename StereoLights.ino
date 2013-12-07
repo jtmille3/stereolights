@@ -135,7 +135,13 @@ void updateLights(int left_bars, int right_bars)
   }
   else // decay
   {
-    delay(20);
+    lights.fill_color(left_channel_bulb[left_channel_last_bulb], 1, 0, color_array[left_channel_last_bulb]);
+    if(left_channel_last_bulb - 1 > 0)
+      lights.fill_color(left_channel_bulb[left_channel_last_bulb - 1], 1, 0xCC/2, color_array[left_channel_last_bulb - 1]);
+    if(left_channel_last_bulb - 2 > 0)
+      lights.fill_color(left_channel_bulb[left_channel_last_bulb - 2], 1, 0xCC/4, color_array[left_channel_last_bulb - 2]);
+    
+    delay(20); // slowly decay
   }
   
   if(right_bars > right_channel_last_bulb) // rise
@@ -150,7 +156,13 @@ void updateLights(int left_bars, int right_bars)
   }
   else // decay
   {
-    delay(20);
+    lights.fill_color(right_channel_bulb[right_channel_last_bulb], 1, 0, color_array[right_channel_last_bulb]);
+    if(right_channel_last_bulb - 1 > 0)
+      lights.fill_color(right_channel_bulb[right_channel_last_bulb - 1], 1, 0xCC/2, color_array[right_channel_last_bulb - 1]);
+    if(right_channel_last_bulb - 2 > 0)
+      lights.fill_color(right_channel_bulb[right_channel_last_bulb - 2], 1, 0xCC/4, color_array[right_channel_last_bulb - 2]);
+      
+    delay(20); // slowly decay
   }
   
   left_channel_last_bulb = left_bars;
