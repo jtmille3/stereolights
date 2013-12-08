@@ -19,7 +19,7 @@
 
 #define BARS (LIGHT_COUNT / 2) // Divide up the equalizer into bars
 
-#define DEBUG (1) // print messages
+#define DEBUG (0) // print messages
 
 // Arduino pin number. Pin 13 will blink the on-board LED.
 #define G35_PIN (2)
@@ -99,13 +99,16 @@ void loop()
     }
   }
 
-  // debugAmplitudes(highAmp0, highAmp1);
+  if(DEBUG) 
+  {
+    debugAmplitudes(highAmp0, highAmp1);
+  }
 
   int bars0 = getBars(highAmp0);
   int bars1 = getBars(highAmp1);
   updateLights(bars0, bars1);
 
-  delay(50); // delay in between reads for stability
+  delay(100); // delay in between reads for stability
 }
 
 void updateLights(int left_bars, int right_bars) 
