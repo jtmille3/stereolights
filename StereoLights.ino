@@ -26,12 +26,12 @@
 
 G35String lights(G35_PIN, LIGHT_COUNT);
 
-color_t color_array[LIGHT_COUNT];
+color_t color_array[BARS + 1];
 
-int left_channel_bulb[BARS];
-int left_channel_last_bulb;
-int right_channel_bulb[BARS];
-int right_channel_last_bulb;
+int left_channel_bulb_array[BARS];
+int left_channel_last_index;
+int right_channel_bulb_array[BARS];
+int right_channel_last_index;
 
 void setup() 
 {
@@ -42,11 +42,12 @@ void setup()
 
   lights.enumerate();
   lights.fill_color(0, 100, G35::MAX_INTENSITY, COLOR_BLACK);
+  // lights.fill_color(0, 1, G35::MAX_INTENSITY, COLOR_BLUE); first light
 
   // rgb1, rgb2, start, length
-  fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 9, 3);
-  fill(0xF, 0x0, 0x0, 0x0, 0xF, 0x0, 3, 6);
-  fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 0, 3);
+  fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 0, 3); // first three in array are red
+  fill(0x0, 0xF, 0x0, 0xF, 0x0, 0x0, 3, 6); // taransition next 6 from red to green
+  fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 9, 3); // last three in array are green
   
   if(DEBUG) 
   {
@@ -56,25 +57,28 @@ void setup()
   {
     color_array[12] = COLOR_GREEN;  // middle light
   }
+ 
   
-  fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 13, 3);
-  fill(0x0, 0xF, 0x0, 0xF, 0x0, 0x0, 16, 6);
-  fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 22, 3);
-  
-  for(int i = 0; i < LIGHT_COUNT / 2; i++) 
+  for(int i = 1; i <= LIGHT_COUNT / 2; i++) 
   {
-    // +1 offset from the middle because of odd bulbs
-    left_channel_bulb[i] = LIGHT_COUNT / 2 + 1 - i;  
-    left_channel_last_bulb = 0;
-    right_channel_bulb[i] = LIGHT_COUNT / 2 + 1 + i;
-    right_channel_last_bulb = 0;
+    left_channel_bulb_array[i - 1] = LIGHT_COUNT / 2 - i;  
+    left_channel_last_index = 0;
+    right_channel_bulb_array[i - 1] = LIGHT_COUNT / 2 + i;
+    right_channel_last_index = 0;
+    
+//    color_t color = color_array[i - 1];
+//    Serial.print("Right Channel[");
+//    Serial.print(i - 1);
+//    Serial.print("]=");
+//    Serial.print(right_channel_bulb_array[i - 1]);
+//    Serial.println();
   }
 }
 
 // control the equalizer through intensity 0x00 to 0xcc
 void loop() 
 {
-  int sampleCount = 20;
+  int sampleCount = 50;
   int highAmp0 = 0;
   int highAmp1 = 0;
   while(sampleCount--) 
@@ -95,78 +99,48 @@ void loop()
     }
   }
 
-  debugAmplitudes(highAmp0, highAmp1);
+  // debugAmplitudes(highAmp0, highAmp1);
 
   int bars0 = getBars(highAmp0);
   int bars1 = getBars(highAmp1);
   updateLights(bars0, bars1);
 
-  delayMicroseconds(100); // delay in between reads for stability
+  delay(50); // delay in between reads for stability
 }
 
 void updateLights(int left_bars, int right_bars) 
 {
-  for(int i = 0; i < LIGHT_COUNT; i++) {
-    if(left_bars + i > BARS && i < BARS) { // assume counting from the middle (13) to the right (25)
-      lights.fill_color(i, 1, G35::MAX_INTENSITY, color_array[i]);
-    } 
-    else if(right_bars + BARS > i && i > BARS) { // assume counting from the middle (11) to the left (0)
-      lights.fill_color(i, 1, G35::MAX_INTENSITY, color_array[i]);
-    } 
-    else 
-    {
-      // fade out the lights that are turned on.
-      // wait until the intensity is half before turning off the next one and so on.
-      lights.fill_color(i, 1, 0x0, color_array[i]);
-    }
-  }
-  
-  return;
-  
-  if(left_bars > left_channel_last_bulb) // rise
+  if(left_bars > left_channel_last_index) // rise
   {
-    for(int j = 0; j < BARS; j++) 
+    for(int j = 0; j < left_bars; j++) 
     {
-      if(left_bars <= j) 
-      {
-        lights.fill_color(left_channel_bulb[j], 1, G35::MAX_INTENSITY, color_array[j]);
-      }
+      lights.fill_color(left_channel_bulb_array[j], 1, G35::MAX_INTENSITY, color_array[j]);
     }
-  }
-  else // decay
-  {
-    lights.fill_color(left_channel_bulb[left_channel_last_bulb], 1, 0, color_array[left_channel_last_bulb]);
-    if(left_channel_last_bulb - 1 > 0)
-      lights.fill_color(left_channel_bulb[left_channel_last_bulb - 1], 1, 0xCC/2, color_array[left_channel_last_bulb - 1]);
-    if(left_channel_last_bulb - 2 > 0)
-      lights.fill_color(left_channel_bulb[left_channel_last_bulb - 2], 1, 0xCC/4, color_array[left_channel_last_bulb - 2]);
     
-    delay(20); // slowly decay
+    left_channel_last_index = left_bars;
   }
   
-  if(right_bars > right_channel_last_bulb) // rise
+  if(right_bars > right_channel_last_index) // rise
   {
-    for(int j = 0; j < BARS; j++) 
+    for(int j = 0; j < right_bars; j++) 
     {
-      if(right_bars <= j) 
-      {
-        lights.fill_color(right_channel_bulb[j], 1, G35::MAX_INTENSITY, color_array[j]);
-      }
+      lights.fill_color(right_channel_bulb_array[j], 1, G35::MAX_INTENSITY, color_array[j]);
     }
-  }
-  else // decay
-  {
-    lights.fill_color(right_channel_bulb[right_channel_last_bulb], 1, 0, color_array[right_channel_last_bulb]);
-    if(right_channel_last_bulb - 1 > 0)
-      lights.fill_color(right_channel_bulb[right_channel_last_bulb - 1], 1, 0xCC/2, color_array[right_channel_last_bulb - 1]);
-    if(right_channel_last_bulb - 2 > 0)
-      lights.fill_color(right_channel_bulb[right_channel_last_bulb - 2], 1, 0xCC/4, color_array[right_channel_last_bulb - 2]);
-      
-    delay(20); // slowly decay
+    
+    right_channel_last_index = right_bars;
   }
   
-  left_channel_last_bulb = left_bars;
-  right_channel_last_bulb = right_bars;
+  if(left_bars <= left_channel_last_index) // decay
+  {
+    lights.fill_color(left_channel_bulb_array[left_channel_last_index], 1, 0, color_array[left_channel_last_index]);
+    left_channel_last_index = left_channel_last_index - 1;   
+  }
+  
+  if(right_bars <= right_channel_last_index) // decay
+  {
+    lights.fill_color(right_channel_bulb_array[right_channel_last_index], 1, 0, color_array[right_channel_last_index]);
+    right_channel_last_index = right_channel_last_index - 1;    
+  }
 }
 
 void fill(int red1, int green1, int blue1, int red2, int green2, int blue2, int start, int frames)
@@ -241,17 +215,17 @@ void get_rgb(color_t color, int rgb[])
 
 uint8_t get_blue(color_t color) 
 {
-  return (color >> 0) & 0xFF;
+  return (color >> 0) & 0xF;
 }
 
 uint8_t get_green(color_t color) 
 {
-  return (color >> 8) & 0xFF;
+  return (color >> 1) & 0xF;
 }
 
 uint8_t get_red(color_t color) 
 {
-  return (color >> 16) & 0xFF;
+  return (color >> 2) & 0xF;
 }
 
 int getAmplitude(int sensorValue) 
