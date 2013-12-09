@@ -26,12 +26,16 @@
 
 G35String lights(G35_PIN, LIGHT_COUNT);
 
-color_t color_array[BARS + 1];
+color_t color_array[BARS];
 
 int left_channel_bulb_array[BARS];
 int left_channel_last_index;
 int right_channel_bulb_array[BARS];
 int right_channel_last_index;
+
+long decay = millis();
+
+#define DECAY_COUNT (200)
 
 void setup() 
 {
@@ -45,20 +49,19 @@ void setup()
   // lights.fill_color(0, 1, G35::MAX_INTENSITY, COLOR_BLUE); first light
 
   // rgb1, rgb2, start, length
-  fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 0, 3); // first three in array are red
-  fill(0x0, 0xF, 0x0, 0xF, 0x0, 0x0, 3, 6); // taransition next 6 from red to green
-  fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 9, 3); // last three in array are green
+  fill(0x0, 0xF, 0x0, 0x0, 0xF, 0x0, 0, 1); // first three in array are red
+  fill(0x0, 0xF, 0x0, 0xF, 0x0, 0x0, 1, 7); // taransition next 6 from red to green
+  fill(0xF, 0x0, 0x0, 0xF, 0x0, 0x0, 8, 4); // last three in array are green
   
   if(DEBUG) 
   {
-    color_array[12] = COLOR_BLACK;  // middle light, easier to locate when black
+    lights.fill_color(12, 1, G35::MAX_INTENSITY, COLOR_BLACK); // middle light, easier to locate when black
   } 
   else 
   {
-    color_array[12] = COLOR_GREEN;  // middle light
+    lights.fill_color(12, 1, G35::MAX_INTENSITY, COLOR_GREEN);// middle light
   }
  
-  
   for(int i = 1; i <= LIGHT_COUNT / 2; i++) 
   {
     left_channel_bulb_array[i - 1] = LIGHT_COUNT / 2 - i;  
@@ -107,8 +110,8 @@ void loop()
   int bars0 = getBars(highAmp0);
   int bars1 = getBars(highAmp1);
   updateLights(bars0, bars1);
-
-  delay(100); // delay in between reads for stability
+  
+  delayMicroseconds(100);
 }
 
 void updateLights(int left_bars, int right_bars) 
@@ -133,16 +136,27 @@ void updateLights(int left_bars, int right_bars)
     right_channel_last_index = right_bars;
   }
   
-  if(left_bars <= left_channel_last_index) // decay
+  long new_decay = millis() - decay;
+  
+  if(left_bars <= left_channel_last_index && new_decay > DECAY_COUNT) // decay
   {
     lights.fill_color(left_channel_bulb_array[left_channel_last_index], 1, 0, color_array[left_channel_last_index]);
-    left_channel_last_index = left_channel_last_index - 1;   
+    if(left_channel_last_index > 0)
+      left_channel_last_index = left_channel_last_index - 1;   
   }
-  
-  if(right_bars <= right_channel_last_index) // decay
+
+  if(right_bars <= right_channel_last_index && new_decay > DECAY_COUNT) // decay
   {
     lights.fill_color(right_channel_bulb_array[right_channel_last_index], 1, 0, color_array[right_channel_last_index]);
-    right_channel_last_index = right_channel_last_index - 1;    
+    if(right_channel_last_index > 0)
+      right_channel_last_index = right_channel_last_index - 1;    
+  }
+  
+  if(new_decay > DECAY_COUNT) 
+  {
+    Serial.print("Decay: ");
+    Serial.println(decay);
+    decay = millis();
   }
 }
 
